@@ -269,15 +269,15 @@ class DeepSurvTF(object):
 			plt.show()
 
 	def predict(self, testXdata):
-		assert os.path.exists(self.params.modelPath)
+		# assert os.path.exists(self.params.modelPath)
 		with tf.Session() as sess:
 			saver = tf.train.Saver()
 			saver.restore(sess, self.params.modelPath)
 			print("model loaded")
 
-			risk = sess.run([risk], feed_dict = {self.x : testXdata})
+			risk = sess.run(self.risk, feed_dict = {self.x : testXdata})
 
-		assert risk.shape[1] == 1
+		# assert risk.shape[1] == 1
 		return risk.ravel()
 
 	def get_concordance_index(self, xdata, edata, tdata):
