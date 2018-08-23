@@ -1,20 +1,20 @@
 from __future__ import print_function
 
-# import lasagne
+import lasagne
 import numpy
 import time
 import json
 import h5py
 
-# import theano
-# import theano.tensor as T
+import theano
+import theano.tensor as T
 
 from lifelines.utils import concordance_index
 
 from deepsurv_logger import DeepSurvLogger
 
-# from lasagne.regularization import regularize_layer_params, l1, l2
-# from lasagne.nonlinearities import rectify,selu
+from lasagne.regularization import regularize_layer_params, l1, l2
+from lasagne.nonlinearities import rectify,selu
 
 class DeepSurv:
     def __init__(self, n_in,
@@ -55,16 +55,16 @@ class DeepSurv:
         self.offset = numpy.zeros(shape = n_in, dtype=numpy.float32)
         self.scale = numpy.ones(shape = n_in, dtype=numpy.float32)
 
-        # self.offset = theano.shared(numpy.zeros(shape = n_in, dtype=numpy.float32))
-        # self.scale = theano.shared(numpy.ones(shape = n_in, dtype=numpy.float32))
+        self.offset = theano.shared(numpy.zeros(shape = n_in, dtype=numpy.float32))
+        self.scale = theano.shared(numpy.ones(shape = n_in, dtype=numpy.float32))
 
         network = lasagne.layers.InputLayer(shape=(None,n_in),
             input_var = self.X)
 
-        # if standardize:
-        #     network = lasagne.layers.standardize(network,self.offset,
-        #                                         self.scale,
-        #                                         shared_axes = 0)
+        if standardize:
+            network = lasagne.layers.standardize(network,self.offset,
+                                                self.scale,
+                                                shared_axes = 0)
         self.standardize = standardize
 
         if activation == 'rectify':
@@ -168,64 +168,64 @@ class DeepSurv:
         neg_likelihood = -T.sum(censored_likelihood) / num_observed_events
         return neg_likelihood
 
-#     def _get_loss_updates(self,
-#     L1_reg = 0.0, L2_reg = 0.001,
-#     update_fn = lasagne.updates.nesterov_momentum,
-#     max_norm = None, deterministic = False,
-#     momentum = 0.9,
-#     **kwargs):
-#         """
-#         Returns Theano expressions for the network's loss function and parameter
-#             updates.
+    def _get_loss_updates(self,
+    L1_reg = 0.0, L2_reg = 0.001,
+    update_fn = lasagne.updates.nesterov_momentum,
+    max_norm = None, deterministic = False,
+    momentum = 0.9,
+    **kwargs):
+        """
+        Returns Theano expressions for the network's loss function and parameter
+            updates.
 
-#         Parameters:
-#             L1_reg: float for L1 weight regularization coefficient.
-#             L2_reg: float for L2 weight regularization coefficient.
-#             max_norm: If not None, constraints the norm of gradients to be less
-#                 than max_norm.
-#             deterministic: True or False. Determines if the output of the network
-#                 is calculated determinsitically.
-#             update_fn: lasagne update function.
-#                 Default: Stochastic Gradient Descent with Nesterov momentum
-#             **kwargs: additional parameters to provide to update_fn.
-#                 For example: momentum
+        Parameters:
+            L1_reg: float for L1 weight regularization coefficient.
+            L2_reg: float for L2 weight regularization coefficient.
+            max_norm: If not None, constraints the norm of gradients to be less
+                than max_norm.
+            deterministic: True or False. Determines if the output of the network
+                is calculated determinsitically.
+            update_fn: lasagne update function.
+                Default: Stochastic Gradient Descent with Nesterov momentum
+            **kwargs: additional parameters to provide to update_fn.
+                For example: momentum
 
-#         Returns:
-#             loss: Theano expression for a penalized negative log likelihood.
-#             updates: Theano expression to update the parameters using update_fn.
-#         """
+        Returns:
+            loss: Theano expression for a penalized negative log likelihood.
+            updates: Theano expression to update the parameters using update_fn.
+        """
 
-#         loss = (
-#             self._negative_log_likelihood(self.E, deterministic)
-#             + regularize_layer_params(self.network,l1) * L1_reg
-#             + regularize_layer_params(self.network, l2) * L2_reg
-#         )
+        loss = (
+            self._negative_log_likelihood(self.E, deterministic)
+            + regularize_layer_params(self.network,l1) * L1_reg
+            + regularize_layer_params(self.network, l2) * L2_reg
+        )
 
-#         if max_norm:
-#             grads = T.grad(loss,self.params)
-#             scaled_grads = lasagne.updates.total_norm_constraint(grads, max_norm)
-#             updates = update_fn(
-#                 scaled_grads, self.params, **kwargs
-#             )
-#         else:
-#             updates = update_fn(
-#                 loss, self.params, **kwargs
-#             )
+        if max_norm:
+            grads = T.grad(loss,self.params)
+            scaled_grads = lasagne.updates.total_norm_constraint(grads, max_norm)
+            updates = update_fn(
+                scaled_grads, self.params, **kwargs
+            )
+        else:
+            updates = update_fn(
+                loss, self.params, **kwargs
+            )
 
-#         if momentum:
-#             updates = lasagne.updates.apply_nesterov_momentum(updates, 
-#                 self.params, self.learning_rate, momentum=momentum)
+        if momentum:
+            updates = lasagne.updates.apply_nesterov_momentum(updates,
+                self.params, self.learning_rate, momentum=momentum)
 
-#         # If the model was loaded from file, reload params
-#         if self.restored_update_params:
-#             for p, value in zip(updates.keys(), self.restored_update_params):
-#                 p.set_value(value)
-#             self.restored_update_params = None
+        # If the model was loaded from file, reload params
+        if self.restored_update_params:
+            for p, value in zip(updates.keys(), self.restored_update_params):
+                p.set_value(value)
+            self.restored_update_params = None
 
-#         # Store last update function to be later saved
-#         self.updates = updates
+        # Store last update function to be later saved
+        self.updates = updates
 
-#         return loss, updates
+        return loss, updates
 
     def _get_train_valid_fn(self,
     L1_reg, L2_reg, learning_rate,
@@ -332,163 +332,169 @@ class DeepSurv:
 
         return (x, e, t)
 
-#     def train(self,
-#     train_data, valid_data= None,
-#     n_epochs = 500,
-#     validation_frequency = 250,
-#     patience = 2000, improvement_threshold = 0.99999, patience_increase = 2,
-#     logger = None,
-#     update_fn = lasagne.updates.nesterov_momentum,
-#     verbose = True,
-#     **kwargs):
-#         """
-#         Trains a DeepSurv network on the provided training data and evalutes
-#             it on the validation data.
+    def train(self,
+    train_data, valid_data= None,
+    n_epochs = 500,
+    validation_frequency = 250,
+    patience = 2000, improvement_threshold = 0.99999, patience_increase = 2,
+    logger = None,
+    update_fn = lasagne.updates.nesterov_momentum,
+    verbose = True,
+    **kwargs):
+        """
+        Trains a DeepSurv network on the provided training data and evalutes
+            it on the validation data.
 
-#         Parameters:
-#             train_data: dictionary with the following keys:
-#                 'x' : (n,d) array of observations (dtype = float32).
-#                 't' : (n) array of observed time events (dtype = float32).
-#                 'e' : (n) array of observed time indicators (dtype = int32).
-#             valid_data: optional. A dictionary with the following keys:
-#                 'x' : (n,d) array of observations.
-#                 't' : (n) array of observed time events.
-#                 'e' : (n) array of observed time indicators.
-#             standardize: True or False. Set the offset and scale of
-#                 standardization layey to the mean and standard deviation of the
-#                 training data.
-#             n_epochs: integer for the maximum number of epochs the network will
-#                 train for.
-#             validation_frequency: how often the network computes the validation
-#                 metrics. Decreasing validation_frequency increases training speed.
-#             patience: minimum number of epochs to train for. Once patience is
-#                 reached, looks at validation improvement to increase patience or
-#                 early stop.
-#             improvement_threshold: percentage of improvement needed to increase
-#                 patience.
-#             patience_increase: multiplier to patience if threshold is reached.
-#             logger: None or DeepSurvLogger.
-#             update_fn: lasagne update function for training.
-#                 Default: lasagne.updates.nesterov_momentum
-#             **kwargs: additional parameters to provide _get_train_valid_fn.
-#                 Parameters used to provide configurations to update_fn.
+        Parameters:
+            train_data: dictionary with the following keys:
+                'x' : (n,d) array of observations (dtype = float32).
+                't' : (n) array of observed time events (dtype = float32).
+                'e' : (n) array of observed time indicators (dtype = int32).
+            valid_data: optional. A dictionary with the following keys:
+                'x' : (n,d) array of observations.
+                't' : (n) array of observed time events.
+                'e' : (n) array of observed time indicators.
+            standardize: True or False. Set the offset and scale of
+                standardization layey to the mean and standard deviation of the
+                training data.
+            n_epochs: integer for the maximum number of epochs the network will
+                train for.
+            validation_frequency: how often the network computes the validation
+                metrics. Decreasing validation_frequency increases training speed.
+            patience: minimum number of epochs to train for. Once patience is
+                reached, looks at validation improvement to increase patience or
+                early stop.
+            improvement_threshold: percentage of improvement needed to increase
+                patience.
+            patience_increase: multiplier to patience if threshold is reached.
+            logger: None or DeepSurvLogger.
+            update_fn: lasagne update function for training.
+                Default: lasagne.updates.nesterov_momentum
+            **kwargs: additional parameters to provide _get_train_valid_fn.
+                Parameters used to provide configurations to update_fn.
 
-#         Returns:
-#             metrics: a dictionary of training metrics that include:
-#                 'train': a list of loss values for each training epoch
-#                 'train_ci': a list of C-indices for each training epoch
-#                 'best_params': a list of numpy arrays containing the parameters
-#                     when the network had the best validation loss
-#                 'best_params_idx': the epoch at which best_params was found
-#             If valid_data is provided, the metrics also contain:
-#                 'valid': a list of validation loss values for each validation frequency
-#                 'valid_ci': a list of validation C-indiices for each validation frequency
-#                 'best_validation_loss': the best validation loss found during training
-#                 'best_valid_ci': the max validation C-index found during training
-#         """
-#         if logger is None:
-#             logger = DeepSurvLogger('DeepSurv')
+        Returns:
+            metrics: a dictionary of training metrics that include:
+                'train': a list of loss values for each training epoch
+                'train_ci': a list of C-indices for each training epoch
+                'best_params': a list of numpy arrays containing the parameters
+                    when the network had the best validation loss
+                'best_params_idx': the epoch at which best_params was found
+            If valid_data is provided, the metrics also contain:
+                'valid': a list of validation loss values for each validation frequency
+                'valid_ci': a list of validation C-indiices for each validation frequency
+                'best_validation_loss': the best validation loss found during training
+                'best_valid_ci': the max validation C-index found during training
+        """
+        if logger is None:
+            logger = DeepSurvLogger('DeepSurv')
 
-#         # Set Standardization layer offset and scale to training data mean and std
-#         if self.standardize:
-#             self.offset = train_data['x'].mean(axis = 0)
-#             self.scale = train_data['x'].std(axis = 0)
+        # Set Standardization layer offset and scale to training data mean and std
+        if self.standardize:
+            self.offset = train_data['x'].mean(axis = 0)
+            self.scale = train_data['x'].std(axis = 0)
 
-#         x_train, e_train, t_train = self.prepare_data(train_data)
+        x_train, e_train, t_train = self.prepare_data(train_data)
+        train_loss, train_ci = [], []
 
-#         if valid_data:
-#             x_valid, e_valid, t_valid = self.prepare_data(valid_data)
+        if valid_data:
+            x_valid, e_valid, t_valid = self.prepare_data(valid_data)
+            valid_loss, valid_ci = [], []
 
-#         # Initialize Metrics
-#         best_validation_loss = numpy.inf
-#         best_params = None
-#         best_params_idx = -1
+        # Initialize Metrics
+        best_validation_loss = numpy.inf
+        best_params = None
+        best_params_idx = -1
 
-#         # Initialize Training Parameters
-#         lr = theano.shared(numpy.array(self.learning_rate,
-#                                     dtype = numpy.float32))
-#         momentum = numpy.array(0, dtype= numpy.float32)
+        # Initialize Training Parameters
+        lr = theano.shared(numpy.array(self.learning_rate,
+                                    dtype = numpy.float32))
+        momentum = numpy.array(0, dtype= numpy.float32)
 
-#         train_fn, valid_fn = self._get_train_valid_fn(
-#             L1_reg=self.L1_reg, L2_reg=self.L2_reg,
-#             learning_rate=lr,
-#             momentum = momentum,
-#             update_fn = update_fn, **kwargs
-#         )
+        train_fn, valid_fn = self._get_train_valid_fn(
+            L1_reg=self.L1_reg, L2_reg=self.L2_reg,
+            learning_rate=lr,
+            momentum = momentum,
+            update_fn = update_fn, **kwargs
+        )
 
-#         start = time.time()
-#         for epoch in range(n_epochs):
-#             # Power-Learning Rate Decay
-#             lr = self.learning_rate / (1 + epoch * self.lr_decay)
-#             logger.logValue('lr', lr, epoch)
+        start = time.time()
+        for epoch in range(n_epochs):
+            # Power-Learning Rate Decay
+            lr = self.learning_rate / (1 + epoch * self.lr_decay)
+            logger.logValue('lr', lr, epoch)
 
-#             if self.momentum and epoch >= 10:
-#                 momentum = self.momentum
+            if self.momentum and epoch >= 10:
+                momentum = self.momentum
 
-#             loss = train_fn(x_train, e_train)
+            loss = train_fn(x_train, e_train)
 
-#             logger.logValue('loss', loss, epoch)
-#             # train_loss.append(loss)
+            logger.logValue('loss', loss, epoch)
+            train_loss.append(loss)
 
-#             ci_train = self.get_concordance_index(
-#                 x_train,
-#                 t_train,
-#                 e_train,
-#             )
-#             logger.logValue('c-index',ci_train, epoch)
-#             # train_ci.append(ci_train)
+            ci_train = self.get_concordance_index(
+                x_train,
+                t_train,
+                e_train,
+            )
+            logger.logValue('c-index',ci_train, epoch)
+            train_ci.append(ci_train)
 
-#             if valid_data and (epoch % validation_frequency == 0):
-#                 validation_loss = valid_fn(x_valid, e_valid)
-#                 logger.logValue('valid_loss',validation_loss, epoch)
+            if valid_data and (epoch % validation_frequency == 0):
+                validation_loss = valid_fn(x_valid, e_valid)
+                logger.logValue('valid_loss',validation_loss, epoch)
 
-#                 ci_valid = self.get_concordance_index(
-#                     x_valid,
-#                     t_valid,
-#                     e_valid
-#                 )
-#                 logger.logValue('valid_c-index', ci_valid, epoch)
+                ci_valid = self.get_concordance_index(
+                    x_valid,
+                    t_valid,
+                    e_valid
+                )
+                logger.logValue('valid_c-index', ci_valid, epoch)
 
-#                 if validation_loss < best_validation_loss:
-#                     # improve patience if loss improves enough
-#                     if validation_loss < best_validation_loss * improvement_threshold:
-#                         patience = max(patience, epoch * patience_increase)
+                if validation_loss < best_validation_loss:
+                    # improve patience if loss improves enough
+                    if validation_loss < best_validation_loss * improvement_threshold:
+                        patience = max(patience, epoch * patience_increase)
 
-#                     best_params = [param.copy().eval() for param in self.params]
-#                     best_params_idx = epoch
-#                     best_validation_loss = validation_loss
+                    best_params = [param.copy().eval() for param in self.params]
+                    best_params_idx = epoch
+                    best_validation_loss = validation_loss
 
-#             if verbose and (epoch % validation_frequency == 0):
-#                 logger.print_progress_bar(epoch, n_epochs, loss, ci_train)
+            if verbose and (epoch % validation_frequency == 0):
+                logger.print_progress_bar(epoch, n_epochs, loss, ci_train)
 
-#             if patience <= epoch:
-#                 break
+            if patience <= epoch:
+                break
 
-#         if verbose:
-#             logger.logMessage('Finished Training with %d iterations in %0.2fs' % (
-#                 epoch + 1, time.time() - start
-#             ))
-#         logger.shutdown()
+        if verbose:
+            logger.logMessage('Finished Training with %d iterations in %0.2fs' % (
+                epoch + 1, time.time() - start
+            ))
+        logger.shutdown()
 
-#         # Return Logger.getMetrics()
-#         # metrics = {
-#         #     'train': train_loss,
-#         #     'best_params': best_params,
-#         #     'best_params_idx' : best_params_idx,
-#         #     'train_ci' : train_ci
-#         # }
-#         # if valid_data:
-#         #     metrics.update({
-#         #         'valid' : valid_loss,
-#         #         'valid_ci': valid_ci,
-#         #         'best_valid_ci': max(valid_ci),
-#         #         'best_validation_loss':best_validation_loss
-#         #     })
-#         logger.history['best_valid_loss'] = best_validation_loss
-#         logger.history['best_params'] = best_params
-#         logger.history['best_params_idx'] = best_params_idx
+        # Return Logger.getMetrics()
+        # metrics = {
+        #     'train': train_loss,
+        #     'best_params': best_params,
+        #     'best_params_idx' : best_params_idx,
+        #     'train_ci' : train_ci
+        # }
+        logger.history['train'] = train_loss
+        logger.history['train_ci'] = train_ci
+        if valid_data:
+            # metrics.update({
+            #     'valid' : valid_loss,
+            #     'valid_ci': valid_ci,
+            #     'best_valid_ci': max(valid_ci),
+            #     'best_validation_loss':best_validation_loss
+            # })
+            logger.history['valid'] = valid_loss
+            logger.history['valid_ci'] = valid_ci
+            logger.history['best_valid_loss'] = best_validation_loss
+            logger.history['best_params'] = best_params
+            logger.history['best_params_idx'] = best_params_idx
 
-#         return logger.history
+        return logger.history
 
     def to_json(self):
         return json.dumps(self.hyperparams)
