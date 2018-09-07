@@ -1,6 +1,6 @@
 # DeepSurv-Tensorflow-Mod
 
-Modified version of DeepSurv-Tensorflow.
+Experimental modificaton of DeepSurv-Tensorflow.
 
 ## Installation for Lasagne 0.2.dev1
     cd Lasagne
@@ -12,5 +12,3 @@ https://github.com/Lasagne/Lasagne.git
 
 The installation can be found at: 
 https://lasagne.readthedocs.io/en/latest/user/installation.html
-
-# extra line
